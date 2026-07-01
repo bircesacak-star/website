@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { authOptions } from '@/lib/auth'
 import { isAdminEmail } from '@/lib/admin'
 import { queryOne, execute } from '@/lib/db'
-import { anthropic, MODEL } from '@/lib/anthropic'
+import { generateText } from '@/lib/anthropic'
 import { buildCareerContentPrompt } from '@/lib/prompts/career-content'
 
 const schema = z.object({
@@ -35,24 +35,14 @@ export async function POST(req: Request) {
 
   const { slug, title, cluster, hollandCodes } = parsed.data
 
-  const msg = await anthropic.messages.create({
-    model: MODEL,
-    max_tokens: 2000,
-    messages: [
-      {
-        role: 'user',
-        content: buildCareerContentPrompt(title, cluster, hollandCodes),
-      },
-    ],
-  })
-
-  const raw = msg.content[0].type === 'text' ? msg.content[0].text.trim() : '{}'
+  const raw = await generateText(buildCareerContentPrompt(title, cluster, hollandCodes), 2000)
 
   let content: CareerContent
   try {
-    content = JSON.parse(raw) as CareerContent
+    const maybeJson = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
+    content = JSON.parse(maybeJson) as CareerContent
   } catch {
-    return NextResponse.json({ error: 'Claude geçersiz JSON döndürdü' }, { status: 500 })
+    return NextResponse.json({ error: 'Gemini geçersiz JSON döndürdü' }, { status: 500 })
   }
 
   const existing = await queryOne<{ id: string }>(

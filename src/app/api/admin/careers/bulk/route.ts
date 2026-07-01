@@ -5,7 +5,7 @@ import { authOptions } from '@/lib/auth'
 import { isAdminEmail } from '@/lib/admin'
 import { CAREER_SEEDS } from '@/lib/career-seeds'
 import { queryAll, execute } from '@/lib/db'
-import { anthropic, MODEL } from '@/lib/anthropic'
+import { generateText } from '@/lib/anthropic'
 import { buildCareerContentPrompt } from '@/lib/prompts/career-content'
 
 type CareerContent = {
@@ -29,19 +29,9 @@ export async function POST() {
 
   for (const seed of seeds) {
     try {
-      const msg = await anthropic.messages.create({
-        model: MODEL,
-        max_tokens: 2000,
-        messages: [
-          {
-            role: 'user',
-            content: buildCareerContentPrompt(seed.title, seed.cluster, seed.hollandCodes),
-          },
-        ],
-      })
-
-      const raw = msg.content[0].type === 'text' ? msg.content[0].text.trim() : '{}'
-      const content = JSON.parse(raw) as CareerContent
+      const raw = await generateText(buildCareerContentPrompt(seed.title, seed.cluster, seed.hollandCodes), 2000)
+      const maybeJson = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '')
+      const content = JSON.parse(maybeJson) as CareerContent
 
       await execute(
         `INSERT INTO careers (id, slug, title, holland_codes, cluster, daily_life, university_courses, job_opportunities, avg_salary_range)
@@ -59,7 +49,6 @@ export async function POST() {
       results.push({ slug: seed.slug, status: 'error', message: String(err) })
     }
 
-    // 600ms ara ver — Claude API rate limit
     await new Promise((r) => setTimeout(r, 600))
   }
 

@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { randomUUID } from 'crypto'
 import { authOptions } from '@/lib/auth'
 import { queryOne, execute } from '@/lib/db'
-import { anthropic, MODEL } from '@/lib/anthropic'
+import { generateText, streamText } from '@/lib/anthropic'
 import {
   buildCareersPrompt,
   buildReportPrompt,
@@ -132,15 +132,7 @@ export async function POST() {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`))
 
       try {
-        const careersMsg = await anthropic.messages.create({
-          model: MODEL,
-          max_tokens: 1024,
-          messages: [{ role: 'user', content: buildCareersPrompt(ctx) }],
-        })
-
-        const careersRaw = careersMsg.content[0].type === 'text'
-          ? careersMsg.content[0].text.trim()
-          : '[]'
+        const careersRaw = await generateText(buildCareersPrompt(ctx), 1024)
 
         let careers: SuitableCareer[] = []
         try {
@@ -155,20 +147,9 @@ export async function POST() {
         const careersText = careers.map((c) => c.title).join(', ')
         let fullReport = ''
 
-        const reportStream = anthropic.messages.stream({
-          model: MODEL,
-          max_tokens: 5000,
-          messages: [{ role: 'user', content: buildReportPrompt(ctx, careersText) }],
-        })
-
-        for await (const event of reportStream) {
-          if (
-            event.type === 'content_block_delta' &&
-            event.delta.type === 'text_delta'
-          ) {
-            fullReport += event.delta.text
-            send({ type: 'chunk', text: event.delta.text })
-          }
+        for await (const text of streamText(buildReportPrompt(ctx, careersText), 5000)) {
+          fullReport += text
+          send({ type: 'chunk', text })
         }
 
         const personalitySummary = fullReport
