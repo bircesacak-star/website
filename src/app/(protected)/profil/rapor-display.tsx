@@ -64,8 +64,8 @@ export function RaporDisplay({ suitableCareers, fullReport, hollandCode }: Props
   const find = (matcher: (t: string) => boolean) =>
     sections.find((s) => matcher(s.title))
 
-  const personalitySection = find((t) => t.startsWith('Baskın Kişilik'))
-  const codeSection = find((t) => t.startsWith('Holland Kodun'))
+  const personalitySection = find((t) => t.startsWith('Dominant Kişilik') || t.startsWith('Baskın Kişilik'))
+  const codeSection = find((t) => t.startsWith('Holland Kodum') || t.startsWith('Holland Kodun'))
   const clustersSection = find((t) => t.startsWith('Kariyer Kümeleri'))
   const universitiesSection = find((t) => t.startsWith('Üniversite'))
   const strengthsSection = find((t) => t.startsWith('Güçlü Yönlerin'))
